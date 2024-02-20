@@ -1,49 +1,117 @@
-// Create the base layers.
-let basemap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+// Create map object.
+let myMap = L.map("map", {
+  //Anchorage
+  center: [37.09, -95.71],
+  zoom: 6
+});
+
+// Create tile layer.
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(myMap);
+
+// add to my map
+function createMap(earthquakes) {
+  // Define streetmap and darkmap layers
+  let streetmap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   });
 
+  // Define a baseMaps object to hold our base layers
+  let baseMaps = {
+    "Street Map": streetmap
+  };
 
-let myMap = L.map("map", {
-    center: [
-      37.09, -95.71
-    ],
-    zoom: 5
-  });
+  // Create overlay object to hold our overlay layer
+  let overlayMaps = {
+    Earthquakes: earthquakes
+  };
 
-basemap.addTo(myMap);
+  // Control layers add to map
+  L.control.layers(baseMaps, overlayMaps, {
+    collapsed: false
+  }).addTo(myMap)
+  };
 
-// Store our API endpoint as queryUrl.
-let queryUrl = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson"
+// Find endpoint for earthquake data
+let queryUrl = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson";
 
-// Perform a GET request to the query URL/
+// Perform GET request
 d3.json(queryUrl).then(function (data) {
-    // Once we get a response, send the data.features object to the createFeatures function.
-    createFeatures(data.features);
-    console.log(data.features);
+  // Log the data retrieved
+  console.log(data);
+  // Create features from data
+  createFeatures(data.features);
+});
+
+// Define marker size
+function markerSize(magnitude) {
+  return magnitude * 4000
+}
+
+// Define marker color
+function markerColor(depth) {
+  if (depth > 90) return "red";
+  else if (depth > 70) return "orangee";
+  else if (depth > 50) return "yellowgreen;"
+  else if (depth > 30) return "yellow";
+  else if (depth > 10) return "lightgreen";
+  else return "green";
+}
+
+// Create features function
+function createFeatures(earthquakeData) {
+  // Create popup function
+  function onEachFeature(feature, layer) {
+    layer.bindPopup(`<h3>Location: ${feature.properties.place}</p><p>Magnitude: ${feature.properties.mag}</p><p>Depth: ${feature.geometry.coordinates[2]}</p>`);
+  }
+
+  // Create GeoJSON layer that contains features array on earthquakeData object
+  // Loop through each feature in array
+  var earthquakes = L.geoJSON(earthquakeData, {
+    onEachFeature: onEachFeature,
+
+    // Point to layer used to change markers
+    pointToLayer: function(feature, latlng) {
+
+      // Determine marker style
+      var markers = {
+        radius: markerSize(feature.properties.mag),
+        fillColor: markerColor(feature.geometry.coordinates[2]),
+        opacity: 1,
+        fillOpacity: .8
+      }
+      return L.circle(latlng,markers);
+    }
   });
 
-  function createFeatures(earthquakeData) {
+  // Send earthquakes layer to createMap function
+  createMap(earthquakes);
 
-    // Define a function that we want to run once for each feature in the features array.
-    // Give each feature a popup that describes the place and time of the earthquake.
-    function onEachFeature(feature, layer) {
-      layer.bindPopup(`<h3>${feature.properties.place}</h3><hr><p>${new Date(feature.properties.time)}</p>`);
+// create map legend
+  var legend = L.control({
+    position: "bottomright"
+  });
+// Then add all the details for the legend
+  legend.onAdd = function () {
+    let div = L.DomUtil.create("div", "info legend");
+    let grades = [-10, 10, 30, 50, 70, 90];
+    let colors = [
+      "green",
+      "lightgreen",
+      "yellowgreen",
+      "yellow",
+      "orange",
+      "red"
+    ];
+  // Looping through our intervals to generate a label with a colored square for each interval.
+    for (var i = 0; i < grades.length; i++) {
+      div.innerHTML += "<i style='background: " + colors[i] + "'></i> "
+        + grades[i] + (grades[i + 1] ? "&ndash;" + grades[i + 1] + "<br>" : "+");
     }
-  
-    // Create a GeoJSON layer that contains the features array on the earthquakeData object.
-    // Run the onEachFeature function once for each piece of data in the array.
-    let earthquakes = L.geoJSON(earthquakeData, {
-      onEachFeature: onEachFeature,
+    return div;
+  };
 
-      
-        pontToLayer: function (feature, latlng){
-        return L.circleMarker(latlng);
-        }
-    }).addTo(myMap);
-  
-
-    // Send our earthquakes layer to the createMap function/
-    //createMap(earthquakes);
-
-  }
+// Finally, we our legend to the map.
+  legend.addTo(myMap);
+};
